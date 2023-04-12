@@ -9,14 +9,21 @@ import com.morpheusdata.cypher.CypherObject
 import com.morpheusdata.cypher.util.RestApiUtil
 import com.morpheusdata.cypher.util.ServiceResponse
 import groovy.util.logging.Slf4j;
+import com.morpheusdata.core.Plugin;
+import groovy.json.JsonOutput
 
 @Slf4j
 class ConjurCypherModule implements CypherModule {
 
     Cypher cypher;
+    Plugin plugin;
     @Override
     public void setCypher(Cypher cypher) {
         this.cypher = cypher;
+    }
+    
+    public void setPlugin(Plugin plugin) {
+      this.plugin = plugin
     }
 
     @Override
@@ -30,10 +37,10 @@ class ConjurCypherModule implements CypherModule {
                 System.out.println("Writing to : " + key);
                 return new CypherObject(key,value,0l, leaseObjectRef, createdBy);
             } else {
-                String conjurUrl = cypher.read("conjur/config/url").value;
-                String conjurUsername = cypher.read("conjur/config/username").value;
-                String conjurApiKey = cypher.read("conjur/config/apiKey").value;
-                String conjurOrg = cypher.read("conjur/config/org").value;
+                String conjurUrl = plugin.getUrl();
+                String conjurUsername = plugin.getUsername();
+                String conjurApiKey = plugin.getApiKey();
+                String conjurOrg = plugin.getOrganization();
                 String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
                 //we gotta fetch from conjur
                 String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
@@ -70,10 +77,10 @@ class ConjurCypherModule implements CypherModule {
         if(relativeKey.startsWith("config/")) {
             return null;
         } else {
-            String conjurUrl = cypher.read("conjur/config/url").value;
-            String conjurUsername = cypher.read("conjur/config/username").value;
-            String conjurApiKey = cypher.read("conjur/config/apiKey").value;
-            String conjurOrg = cypher.read("conjur/config/org").value;
+            String conjurUrl = plugin.getUrl();
+            String conjurUsername = plugin.getUsername();
+            String conjurApiKey = plugin.getApiKey();
+            String conjurOrg = plugin.getOrganization();
             String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
             //we gotta fetch from conjur
             String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
@@ -105,22 +112,25 @@ class ConjurCypherModule implements CypherModule {
         if(relativeKey.startsWith("config/")) {
             return true;
         } else {
-            String conjurUrl = cypher.read("conjur/config/url").value;
-            String conjurUsername = cypher.read("conjur/config/username").value;
-            String conjurApiKey = cypher.read("conjur/config/apiKey").value;
-            String conjurOrg = cypher.read("conjur/config/org").value;
-            String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
-            //we gotta fetch from conjur
-            String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
-            //TODO: HTTP Client time
-            RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
-            restOptions.headers = new LinkedHashMap<>();
-            restOptions.headers.put("Authorization",conjurToken);
-            restOptions.body = ''
-            try {
-                RestApiUtil.callApi(conjurUrl,conjurPath,null,null,restOptions,"POST");
-            } catch(Exception ex) {
+            String conjurUrl = plugin.getUrl();
+            String conjurUsername = plugin.getUsername();
+            String conjurApiKey = plugin.getApiKey();
+            String conjurOrg = plugin.getOrganization();
+            boolean clearSecretOnDeletion = plugin.getClearSecretOnDeletion();
+            if(clearSecretOnDeletion) {
+              String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
+              //we gotta fetch from conjur
+              String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
+              //TODO: HTTP Client time
+              RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
+              restOptions.headers = new LinkedHashMap<>();
+              restOptions.headers.put("Authorization",conjurToken);
+              restOptions.body = JsonOutput.toJson("")
+              try {
+                  RestApiUtil.callApi(conjurUrl,conjurPath,null,null,restOptions,"POST");
+              } catch(Exception ex) {
 
+              }
             }
             return true;
         }
@@ -145,7 +155,7 @@ class ConjurCypherModule implements CypherModule {
     public String getUsage() {
         StringBuilder usage = new StringBuilder();
 
-        usage.append("This allows secret data to be fetched from a CyberArk Conjur integration. This can be configured in the conjur/config key setup");
+        usage.append("This allows secret data to be fetched from a CyberArk Conjur integration. This can be configured in the plugin integration settings.");
 
         return usage.toString();
     }
