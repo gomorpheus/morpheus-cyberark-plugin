@@ -295,7 +295,6 @@ class ConjurCredentialProvider implements CredentialProvider {
             rtn = rtn.replace(' - ', '-')
             rtn = rtn.replace(' ', '-')
             rtn = rtn.replace('/', '-')
-            rtn = rtn.toLowerCase()
         }
         return URLEncoder.encode(rtn)
     }
