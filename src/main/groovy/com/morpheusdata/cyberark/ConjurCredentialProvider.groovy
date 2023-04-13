@@ -42,7 +42,7 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     ServiceResponse<Map> loadCredentialData(AccountIntegration integration, AccountCredential credential, Map opts) {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
-        String organization = integration.getConfigProperty("organization")
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
         HttpApiClient apiClient = new HttpApiClient()
         try {
             def authResults = authToken(apiClient,integration)
@@ -53,7 +53,7 @@ class ConjurCredentialProvider implements CredentialProvider {
                     secretPathSuffix = secretPathSuffix + '/'
                 }
                 String conjurPath="/secrets/${organization}/variable/" + secretPathSuffix + formatApiName(credential.name)
-                def apiResults = apiClient.callApi(integration.serviceUrl,conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data]),'GET')
+                def apiResults = apiClient.callApi(integration.serviceUrl ?: plugin.getUrl(),conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data]),'GET')
                 if(apiResults.success) {
                     Map data = new JsonSlurper().parseText(apiResults.content) as Map
                     ServiceResponse<Map> response = new ServiceResponse<>(true,null,null,data)
@@ -71,11 +71,14 @@ class ConjurCredentialProvider implements CredentialProvider {
     }
 
     protected ServiceResponse<String> authToken(HttpApiClient client, AccountIntegration integration) {
-        String username = integration.serviceUsername
-        String apiKey = integration.servicePassword
-        String organization = integration.getConfigProperty("organization")
-
-        def authResults = client.callApi(integration.serviceUrl,"authn/${organization}/${username}/authenticate".toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Accept-Encoding': "base64"], body: apiKey),'POST')
+        String username = integration.serviceUsername ?: plugin.getUsername()
+        String apiKey = integration.servicePassword ?: plugin.getApiKey()
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
+        //Conjur usernames frequently require URL encoded / in the path. For example host%2Fapp
+        //HttpApiClient uses apache URLBuilder which will double encode unless we are careful.
+        String url = "${integration.serviceUrl ?: plugin.getUrl()}/authn/${URLEncoder.encode(organization)}"
+        url = url + "/${username}/authenticate"
+        def authResults = client.callApi(url,null,null,null,new HttpApiClient.RequestOptions(headers: ['Accept-Encoding': "base64"], body: apiKey),'POST')
         if(authResults.success) {
             return ServiceResponse.success("Token token=\"${authResults.content}\"".toString())
         } else {
@@ -93,30 +96,36 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     ServiceResponse<AccountCredential> deleteCredential(AccountIntegration integration, AccountCredential credential, Map opts) {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
-        String organization = integration.getConfigProperty("organization")
-        HttpApiClient apiClient = new HttpApiClient()
-        try {
-            def authResults = authToken(apiClient,integration)
-            if(authResults.success) {
-                 //we gotta fetch from Conjur
-                if(secretPathSuffix && !secretPathSuffix.endsWith('/')) {
-                    secretPathSuffix = secretPathSuffix + '/'
-                }
-                String conjurPath="/secrets/${organization}/variable/" + secretPathSuffix + formatApiName(credential.name)
-                def apiResults = apiClient.callApi(integration.serviceUrl,conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body:''),'POST')
-                if(apiResults.success) {
-                    ServiceResponse<AccountCredential> response = new ServiceResponse<>(true,null,null,credential)
-                    return response
-                } else {
-                    return ServiceResponse.error(apiResults.error,null,credential)
-                }
-            } else {
-                return ServiceResponse.error(authResults.error)
-            }
-           
-        } finally {
-            apiClient.shutdownClient()
-        }
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
+        boolean clearSecretOnDeletion = integration.getConfigProperty("clearSecretOnDeletion") ?: plugin.getClearSecretOnDeletion()
+        if(clearSecretOnDeletion) {
+          HttpApiClient apiClient = new HttpApiClient()
+          try {
+              def authResults = authToken(apiClient,integration)
+              if(authResults.success) {
+                   //we gotta fetch from Conjur
+                  if(secretPathSuffix && !secretPathSuffix.endsWith('/')) {
+                      secretPathSuffix = secretPathSuffix + '/'
+                  }
+                  String conjurPath="/secrets/${organization}/variable/" + secretPathSuffix + formatApiName(credential.name)
+                  def apiResults = apiClient.callApi(integration.serviceUrl ?: plugin.getUrl(),conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body:JsonOutput.toJson("")),'POST')
+                  if(apiResults.success) {
+                      ServiceResponse<AccountCredential> response = new ServiceResponse<>(true,null,null,credential)
+                      return response
+                  } else {
+                      return ServiceResponse.error(apiResults.error,null,credential)
+                  }
+              } else {
+                  return ServiceResponse.error(authResults.error)
+              }
+             
+          } finally {
+              apiClient.shutdownClient()
+          }
+      } else {
+        ServiceResponse<AccountCredential> response = new ServiceResponse<>(true,null,null,credential)
+        return response
+      }
     }
 
     /**
@@ -129,7 +138,7 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     ServiceResponse<AccountCredential> createCredential(AccountIntegration integration, AccountCredential credential, Map opts) {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
-        String organization = integration.getConfigProperty("organization")
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
         HttpApiClient apiClient = new HttpApiClient()
         try {
 
@@ -140,7 +149,7 @@ class ConjurCredentialProvider implements CredentialProvider {
                     secretPathSuffix = secretPathSuffix + '/'
                 }
                 String conjurPath="/secrets/${organization}/variable/" + secretPathSuffix + formatApiName(credential.name)
-                def apiResults = apiClient.callApi(integration.serviceUrl,conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body: JsonOutput.toJson(credential.data)),'POST')
+                def apiResults = apiClient.callApi(integration.serviceUrl ?: plugin.getUrl(),conjurPath.toString(),null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body: JsonOutput.toJson(credential.data)),'POST')
                 if(apiResults.success) {
                     ServiceResponse<AccountCredential> response = new ServiceResponse<>(true,null,null,credential)
                     return response
@@ -165,7 +174,7 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     ServiceResponse<AccountCredential> updateCredential(AccountIntegration integration, AccountCredential credential, Map opts) {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
-        String organization = integration.getConfigProperty("organization")
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
 
         HttpApiClient apiClient = new HttpApiClient()
         try {
@@ -176,7 +185,7 @@ class ConjurCredentialProvider implements CredentialProvider {
                     secretPathSuffix = secretPathSuffix + '/'
                 }
                 String conjurPath = "/secrets/${organization}/variable/" + secretPathSuffix + formatApiName(credential.name)
-                def apiResults = apiClient.callApi(integration.serviceUrl, conjurPath.toString(),null,null, new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body: JsonOutput.toJson(credential.data)), 'POST')
+                def apiResults = apiClient.callApi(integration.serviceUrl ?: plugin.getUrl(), conjurPath.toString(),null,null, new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data], body: JsonOutput.toJson(credential.data)), 'POST')
                 if (apiResults.success) {
                     ServiceResponse<AccountCredential> response = new ServiceResponse<>(true, null, null, credential)
                     return response
@@ -208,7 +217,7 @@ class ConjurCredentialProvider implements CredentialProvider {
             def authResults = authToken(apiClient,integration)
             if(authResults.success) {
 
-                def apiResults = apiClient.callApi(integration.serviceUrl,'/whoami',null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data]),'GET')
+                def apiResults = apiClient.callApi(integration.serviceUrl ?: plugin.getUrl(),'/whoami',null,null,new HttpApiClient.RequestOptions(headers: ['Authorization': authResults.data]),'GET')
                 if(apiResults.success) {
                     ServiceResponse<Map> response = new ServiceResponse<>(true,null,null,[:])
                     return response
@@ -235,7 +244,8 @@ class ConjurCredentialProvider implements CredentialProvider {
                 new OptionType(code: 'conjur.serviceUsername', name: 'Service Username', inputType: OptionType.InputType.TEXT, fieldName: 'serviceUsername', fieldLabel: 'Username', fieldContext: 'domain', displayOrder: 1),
                 new OptionType(code: 'conjur.serviceApiKey', name: 'Service ApiKey', inputType: OptionType.InputType.PASSWORD, fieldName: 'servicePassword', fieldLabel: 'API Key', fieldContext: 'domain', displayOrder: 2),
                 new OptionType(code: 'conjur.organization', name: 'Organization', inputType: OptionType.InputType.TEXT, fieldName: 'organization', fieldLabel: 'Organization', fieldContext: 'config', displayOrder: 3),
-                new OptionType(code: 'conjur.secretPath', name: 'Secret Path', inputType: OptionType.InputType.TEXT,placeHolderText: 'morpheus-credentials/', fieldName: 'secretPath', fieldLabel: 'Secret Path', fieldContext: 'config', displayOrder: 4)
+                new OptionType(code: 'conjur.secretPath', name: 'Secret Path', inputType: OptionType.InputType.TEXT,placeHolderText: 'morpheus-credentials/', fieldName: 'secretPath', fieldLabel: 'Secret Path', fieldContext: 'config', displayOrder: 4),
+                new OptionType(code: 'conjur.clearSecretOnDeletion', name: 'Clear Secret On Deletion', inputType: OptionType.InputType.CHECKBOX, fieldName: 'clearSecretOnDeletion', fieldLabel: 'Clear Secret On Deletion', fieldContext: 'config', displayOrder: 5)
         ]
     }
 
@@ -295,7 +305,6 @@ class ConjurCredentialProvider implements CredentialProvider {
             rtn = rtn.replace(' - ', '-')
             rtn = rtn.replace(' ', '-')
             rtn = rtn.replace('/', '-')
-            rtn = rtn.toLowerCase()
         }
         return URLEncoder.encode(rtn)
     }

@@ -20,7 +20,9 @@ class ConjurCypherProvider implements CypherModuleProvider{
      */
     @Override
     CypherModule getCypherModule() {
-        new ConjurCypherModule()
+        ConjurCypherModule module = new ConjurCypherModule()
+        module.setPlugin(this.plugin)
+        return module
     }
 
     /**
