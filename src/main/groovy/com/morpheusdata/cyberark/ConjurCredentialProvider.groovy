@@ -44,6 +44,7 @@ class ConjurCredentialProvider implements CredentialProvider {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
         String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
         HttpApiClient apiClient = new HttpApiClient()
+        apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
         try {
             def authResults = authToken(apiClient,integration)
             if(authResults.success) {
@@ -100,6 +101,7 @@ class ConjurCredentialProvider implements CredentialProvider {
         boolean clearSecretOnDeletion = integration.getConfigProperty("clearSecretOnDeletion") ?: plugin.getClearSecretOnDeletion()
         if(clearSecretOnDeletion) {
           HttpApiClient apiClient = new HttpApiClient()
+          apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
           try {
               def authResults = authToken(apiClient,integration)
               if(authResults.success) {
@@ -140,6 +142,7 @@ class ConjurCredentialProvider implements CredentialProvider {
         String secretPathSuffix = integration.getConfigProperty("secretPath") ?: ''
         String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
         HttpApiClient apiClient = new HttpApiClient()
+        apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
         try {
 
             def authResults = authToken(apiClient,integration)
@@ -177,6 +180,7 @@ class ConjurCredentialProvider implements CredentialProvider {
         String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
 
         HttpApiClient apiClient = new HttpApiClient()
+        apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
         try {
             def authResults = authToken(apiClient,integration)
             if(authResults.success) {
@@ -213,6 +217,7 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     ServiceResponse<Map> verify(AccountIntegration integration, Map opts) {
         HttpApiClient apiClient = new HttpApiClient()
+        apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
         try {
             def authResults = authToken(apiClient,integration)
             if(authResults.success) {

@@ -2,12 +2,13 @@ package com.morpheusdata.cyberark
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.morpheusdata.core.MorpheusContext
 import com.morpheusdata.cypher.Cypher;
 import com.morpheusdata.cypher.CypherMeta;
 import com.morpheusdata.cypher.CypherModule;
 import com.morpheusdata.cypher.CypherObject
-import com.morpheusdata.cypher.util.RestApiUtil
-import com.morpheusdata.cypher.util.ServiceResponse
+import com.morpheusdata.core.util.HttpApiClient
+import com.morpheusdata.response.ServiceResponse
 import groovy.util.logging.Slf4j;
 import com.morpheusdata.core.Plugin;
 import groovy.json.JsonOutput
@@ -17,6 +18,7 @@ class ConjurCypherModule implements CypherModule {
 
     Cypher cypher;
     Plugin plugin;
+    MorpheusContext morpheusContext
     @Override
     public void setCypher(Cypher cypher) {
         this.cypher = cypher;
@@ -24,6 +26,10 @@ class ConjurCypherModule implements CypherModule {
     
     public void setPlugin(Plugin plugin) {
       this.plugin = plugin
+    }
+
+    public void setMorpheusContext(MorpheusContext morpheusContext) {
+        this.morpheusContext = morpheusContext
     }
 
     @Override
@@ -45,14 +51,12 @@ class ConjurCypherModule implements CypherModule {
                 //we gotta fetch from conjur
                 String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
 
-                RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
-                restOptions.headers = new LinkedHashMap<>();
-                restOptions.headers.put("Authorization",conjurToken);
+                HttpApiClient apiClient = new HttpApiClient()
+                apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
+                def requestOpts = new HttpApiClient.RequestOptions(headers: ['Authorization': conjurToken], body: value)
 
-                restOptions.body = value
-//                restOptions.body =
                 try {
-                    ServiceResponse resp = RestApiUtil.callApi(conjurUrl,conjurPath,null,null,restOptions,"POST");
+                    ServiceResponse resp = apiClient.callApi(conjurUrl,conjurPath,null,null,requestOpts,"POST");
                     if(resp.getSuccess()) {
                         return new CypherObject(key,value,leaseTimeout, leaseObjectRef, createdBy);
                     } else {
@@ -84,11 +88,11 @@ class ConjurCypherModule implements CypherModule {
             String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
             //we gotta fetch from conjur
             String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
-            RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
-            restOptions.headers = new LinkedHashMap<>();
-            restOptions.headers.put("Authorization",conjurToken);
+            HttpApiClient apiClient = new HttpApiClient()
+            apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
+            def requestOpts = new HttpApiClient.RequestOptions(headers: ['Authorization': conjurToken])
             try {
-                ServiceResponse resp = RestApiUtil.callApi(conjurUrl,conjurPath,null,null,restOptions,"GET");
+                ServiceResponse resp = apiClient.callApi(conjurUrl,conjurPath,null,null,requestOpts,"GET");
                 if(resp.getSuccess()) {
                     ObjectMapper mapper = new ObjectMapper();
 
@@ -121,13 +125,11 @@ class ConjurCypherModule implements CypherModule {
               String conjurToken = getAuthToken(conjurUrl,conjurOrg,conjurUsername,conjurApiKey)
               //we gotta fetch from conjur
               String conjurPath="/secrets/${conjurOrg}/variable/" + relativeKey
-              //TODO: HTTP Client time
-              RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
-              restOptions.headers = new LinkedHashMap<>();
-              restOptions.headers.put("Authorization",conjurToken);
-              restOptions.body = JsonOutput.toJson("")
+              HttpApiClient apiClient = new HttpApiClient()
+              apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
+              def requestOpts = new HttpApiClient.RequestOptions(headers: ['Authorization': conjurToken], body: JsonOutput.toJson(""))
               try {
-                  RestApiUtil.callApi(conjurUrl,conjurPath,null,null,restOptions,"POST");
+                  apiClient.callApi(conjurUrl,conjurPath,null,null,requestOpts,"POST");
               } catch(Exception ex) {
 
               }
@@ -137,11 +139,10 @@ class ConjurCypherModule implements CypherModule {
     }
 
     protected getAuthToken(String conjurUrl, String conjurOrg, String conjurUsername, String conjurApiKey) {
-        RestApiUtil.RestOptions restOptions = new RestApiUtil.RestOptions();
-        restOptions.headers = new LinkedHashMap<>();
-        restOptions.headers.put("Accept-Encoding",'base64');
-        restOptions.body = conjurApiKey
-        ServiceResponse resp = RestApiUtil.callApi(conjurUrl,"authn/${conjurOrg}/${conjurUsername}/authenticate",null,null,restOptions,"POST");
+        HttpApiClient apiClient = new HttpApiClient()
+        apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
+        def requestOpts = new HttpApiClient.RequestOptions(headers: ['Accept-Encoding':'base64'], body: conjurApiKey)
+        ServiceResponse resp = apiClient.callApi(conjurUrl,"authn/${conjurOrg}/${conjurUsername}/authenticate",null,null,requestOpts,"POST");
         if(resp.getSuccess()) {
             return "Token token=\"${resp.getContent()}\""
         } else {

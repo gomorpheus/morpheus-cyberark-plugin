@@ -21,6 +21,7 @@ class ConjurCypherProvider implements CypherModuleProvider{
     @Override
     CypherModule getCypherModule() {
         ConjurCypherModule module = new ConjurCypherModule()
+        module.setMorpheusContext(this.morpheusContext)
         module.setPlugin(this.plugin)
         return module
     }
