@@ -104,7 +104,7 @@ class ConjurCypherModule implements CypherModule {
                     return null;//throw exception?
                 }
             } catch(Exception ex) {
-                ex.printStackTrace();
+                log.error("Error Occurred reading conjur key {}",ex.message,ex)
                 return null;
             }
 
