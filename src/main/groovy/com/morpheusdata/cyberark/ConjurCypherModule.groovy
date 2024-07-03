@@ -142,7 +142,10 @@ class ConjurCypherModule implements CypherModule {
         HttpApiClient apiClient = new HttpApiClient()
         apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
         def requestOpts = new HttpApiClient.RequestOptions(headers: ['Accept-Encoding':'base64'], body: conjurApiKey)
-        ServiceResponse resp = apiClient.callApi(conjurUrl,"authn/${conjurOrg}/${conjurUsername}/authenticate",null,null,requestOpts,"POST");
+        //Conjur usernames frequently require URL encoded / in the path. For example host%2Fapp
+        //HttpApiClient uses apache URLBuilder which will double encode unless we are careful.
+        def url = "${conjurUrl}/authn/${URLEncoder.encode(conjurOrg, 'UTF-8')}/${URLEncoder.encode(conjurUsername, 'UTF-8')}/authenticate"
+        ServiceResponse resp = apiClient.callApi(url,null,null,null,requestOpts,"POST");
         if(resp.getSuccess()) {
             return "Token token=\"${resp.getContent()}\""
         } else {

@@ -77,8 +77,7 @@ class ConjurCredentialProvider implements CredentialProvider {
         String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
         //Conjur usernames frequently require URL encoded / in the path. For example host%2Fapp
         //HttpApiClient uses apache URLBuilder which will double encode unless we are careful.
-        String url = "${integration.serviceUrl ?: plugin.getUrl()}/authn/${URLEncoder.encode(organization)}"
-        url = url + "/${username}/authenticate"
+        String url = "${integration.serviceUrl ?: plugin.getUrl()}/authn/${URLEncoder.encode(organization, 'UTF-8')}/${URLEncoder.encode(username, 'UTF-8')}/authenticate"
         def authResults = client.callApi(url,null,null,null,new HttpApiClient.RequestOptions(headers: ['Accept-Encoding': "base64"], body: apiKey),'POST')
         if(authResults.success) {
             return ServiceResponse.success("Token token=\"${authResults.content}\"".toString())
