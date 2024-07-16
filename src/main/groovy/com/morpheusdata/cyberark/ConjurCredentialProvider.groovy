@@ -217,6 +217,27 @@ class ConjurCredentialProvider implements CredentialProvider {
     ServiceResponse<Map> verify(AccountIntegration integration, Map opts) {
         HttpApiClient apiClient = new HttpApiClient()
         apiClient.networkProxy = morpheusContext.services.setting.getGlobalNetworkProxy()
+        ServiceResponse validationResponse = ServiceResponse.create([success: true])
+        String apiUrl = integration.serviceUrl ?: plugin.getUrl()
+        if(!apiUrl) {
+            validationResponse.addError('serviceUrl', 'API URL is required in either the integration or plugin')
+        }
+        String username = integration.serviceUsername ?: plugin.getUsername()
+        if(!username) {
+            validationResponse.addError('serviceUsername', 'Username is required in either the integration or plugin')
+        }
+        String apiKey = integration.servicePassword ?: plugin.getApiKey()
+        if(!apiKey) {
+            validationResponse.addError('servicePassword', 'API KEY is required in either the integration or plugin')
+        }
+        String organization = integration.getConfigProperty("organization") ?: plugin.getOrganization()
+        if(!organization) {
+            validationResponse.addError('organization', 'Organization is required in either the integration or plugin')
+        }
+        if(validationResponse.hasErrors()) {
+            return validationResponse
+        }
+
         try {
             def authResults = authToken(apiClient,integration)
             if(authResults.success) {
@@ -244,10 +265,10 @@ class ConjurCredentialProvider implements CredentialProvider {
     @Override
     List<OptionType> getIntegrationOptionTypes() {
         return [
-                new OptionType(code: 'conjur.serviceUrl', name: 'Service URL', inputType: OptionType.InputType.TEXT, fieldName: 'serviceUrl', fieldLabel: 'API Url', fieldContext: 'domain', displayOrder: 0),
-                new OptionType(code: 'conjur.serviceUsername', name: 'Service Username', inputType: OptionType.InputType.TEXT, fieldName: 'serviceUsername', fieldLabel: 'Username', fieldContext: 'domain', displayOrder: 1),
-                new OptionType(code: 'conjur.serviceApiKey', name: 'Service ApiKey', inputType: OptionType.InputType.PASSWORD, fieldName: 'servicePassword', fieldLabel: 'API Key', fieldContext: 'domain', displayOrder: 2),
-                new OptionType(code: 'conjur.organization', name: 'Organization', inputType: OptionType.InputType.TEXT, fieldName: 'organization', fieldLabel: 'Organization', fieldContext: 'config', displayOrder: 3),
+                new OptionType(code: 'conjur.serviceUrl', name: 'Service URL', inputType: OptionType.InputType.TEXT, fieldName: 'serviceUrl', fieldLabel: 'API Url', fieldContext: 'domain', displayOrder: 0, helpText: 'This value is inherited from the plugin and will override the plugin value.'),
+                new OptionType(code: 'conjur.serviceUsername', name: 'Service Username', inputType: OptionType.InputType.TEXT, fieldName: 'serviceUsername', fieldLabel: 'Username', fieldContext: 'domain', displayOrder: 1, helpText: 'This value is inherited from the plugin and will override the plugin value.'),
+                new OptionType(code: 'conjur.serviceApiKey', name: 'Service ApiKey', inputType: OptionType.InputType.PASSWORD, fieldName: 'servicePassword', fieldLabel: 'API Key', fieldContext: 'domain', displayOrder: 2, helpText: 'This value is inherited from the plugin and will override the plugin value.'),
+                new OptionType(code: 'conjur.organization', name: 'Organization', inputType: OptionType.InputType.TEXT, fieldName: 'organization', fieldLabel: 'Organization', fieldContext: 'config', displayOrder: 3, helpText: 'This value is inherited from the plugin and will override the plugin value.'),
                 new OptionType(code: 'conjur.secretPath', name: 'Secret Path', inputType: OptionType.InputType.TEXT,placeHolderText: 'morpheus-credentials/', fieldName: 'secretPath', fieldLabel: 'Secret Path', fieldContext: 'config', displayOrder: 4),
                 new OptionType(code: 'conjur.clearSecretOnDeletion', name: 'Clear Secret On Deletion', inputType: OptionType.InputType.CHECKBOX, fieldName: 'clearSecretOnDeletion', fieldLabel: 'Clear Secret On Deletion', fieldContext: 'config', displayOrder: 5)
         ]
